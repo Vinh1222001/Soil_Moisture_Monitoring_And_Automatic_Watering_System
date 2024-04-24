@@ -1,8 +1,8 @@
 #pragma region INCLUDE SECTION
 
   #include <Arduino.h>
-  #include <WiFi.h>
-  #include <WebServer.h>
+  // #include <WiFi.h>
+  // #include <WebServer.h>
 
 #pragma endregion
 
@@ -16,18 +16,17 @@
 
 #pragma region DEFINE VARIABLE
 
-  volatile long pressedCount = 0;
-  volatile long rawPressedCount =0;
-  volatile long lastButtonPressMS =0;
+  volatile bool buttonPressed = false;
+  volatile u_int8_t rawPressedCount =0;
+  volatile u_int8_t lastButtonPressMS =0;
 
 #pragma endregion
 
-#pragma region DEFINE FUNCTION
+#pragma region FUNCTION PROTOTYPE SECTION
+
+  void toggleRelay(void* parameter);
 
   float moistureConverter(uint16_t sensorRead);
-
-  void toggleRelay(void* arg);
-
   void ICACHE_RAM_ATTR ButtonISR();
 #pragma endregion
 
@@ -37,14 +36,14 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLDOWN);
   attachInterrupt(BUTTON_PIN , ButtonISR, FALLING);
-  // xTaskCreatePinnedToCore(toggleRelay, "ToggleRelay", 2048, NULL , 2, NULL,0);
+  xTaskCreatePinnedToCore(toggleRelay, "toggleRelay", 1024, NULL , 2, NULL,0);
 }
 
 void loop() {
 // 
-  Serial.printf("Debounce Presses: %d\n", pressedCount);
-  Serial.printf("Raw Presses: %d\n", rawPressedCount);
-  delay(5000);
+  // Serial.printf("Debounce Presses: %d\n", buttonPressed);
+  // Serial.printf("Raw Presses: %d\n", rawPressedCount);
+  // delay(5000);
 }
 
 #pragma region FUNCTION IMPLEMENTATION
@@ -53,20 +52,26 @@ void loop() {
     return 100 - ((sensorRead/4095.00)*100);
   }
 
-  void toggleRelay(void* arg){
-    
-    // if(BUTTON_PIN == HIGH){
-    //   digitalWrite(RELAY_PIN, HIGH);
-    // }
-
-  }
-
   void ICACHE_RAM_ATTR ButtonISR(){
     rawPressedCount ++;
     if((millis() - lastButtonPressMS) >200) {
       lastButtonPressMS = millis();
-      pressedCount++;
+      buttonPressed = !buttonPressed;
     }
+  }
+
+  void toggleRelay( void* parameter){
+    while (true)
+    {
+      if(buttonPressed){
+        digitalWrite(RELAY_PIN, HIGH);
+      }else{
+        digitalWrite(RELAY_PIN, LOW);
+      }
+
+      vTaskDelay(500/portTICK_PERIOD_MS);
+    }
+    
   }
 
 #pragma endregion
